@@ -1,0 +1,4 @@
+
+backend/attendance.db
+backend/venv/
+__pycache__/

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import models
 import database
+import excel_utils
 
 models.Base.metadata.create_all(bind=database.engine)
 
@@ -58,7 +59,13 @@ def get_face_encoding(image_bytes):
         return None, []
 
 @app.post("/api/register")
-async def register_student(name: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def register_student(name: str = Form(...), entry_number: str = Form(...), class_name: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
+    
+    # Check if entry_number already exists
+    existing_user = db.query(models.Student).filter(models.Student.entry_number == entry_number).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail=f"Student with entry number {entry_number} is already registered.")
+        
     image_bytes = await file.read()
     encodings, _ = get_face_encoding(image_bytes)
     
@@ -68,14 +75,22 @@ async def register_student(name: str = Form(...), file: UploadFile = File(...), 
     if len(encodings) > 1:
         raise HTTPException(status_code=400, detail="Multiple faces detected. Please upload an image with only one face.")
     
-    encoding_json = json.dumps(encodings[0].tolist())
-    
-    new_student = models.Student(name=name, face_encoding=encoding_json)
-    db.add(new_student)
-    db.commit()
-    db.refresh(new_student)
-    
-    return {"message": "Student registered successfully", "student_id": new_student.id, "name": new_student.name}
+    try:
+        encoding_json = json.dumps(encodings[0].tolist())
+        
+        new_student = models.Student(name=name, entry_number=entry_number, class_name=class_name, face_encoding=encoding_json)
+        db.add(new_student)
+        db.commit()
+        db.refresh(new_student)
+        
+        # Log to Excel
+        excel_utils.append_student_to_excel(name, entry_number, class_name)
+        
+        return {"message": "Student registered successfully", "student_id": new_student.id, "name": new_student.name}
+    except Exception as e:
+        db.rollback()
+        print(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail="An internal error occurred during registration.")
 
 @app.post("/api/mark-attendance")
 async def mark_attendance(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -99,38 +114,51 @@ async def mark_attendance(file: UploadFile = File(...), db: Session = Depends(ge
         student_names.append(s.name)
         
     recognized_names = set()
+    already_marked_names = set()
     
-    for face_encoding in encodings:
-        # Compare current face encoding with all known encodings
-        matches = face_recognition.compare_faces(known_encodings, face_encoding)
-        face_distances = face_recognition.face_distance(known_encodings, face_encoding)
-        
-        if len(face_distances) > 0:
-            best_match_index = np.argmin(face_distances)
-            if matches[best_match_index]:
-                student_id = student_ids[best_match_index]
-                student_name = student_names[best_match_index]
-                
-                # Check for debounce (don't log if logged in the last 1 minute)
-                last_attendance = db.query(models.Attendance).filter(
-                    models.Attendance.student_id == student_id
-                ).order_by(models.Attendance.timestamp.desc()).first()
-                
-                import datetime as dt
-                now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
-                if last_attendance:
-                    time_diff = (now - last_attendance.timestamp).total_seconds()
-                    if time_diff < 60:
-                        recognized_names.add(student_name)
-                        continue # Skip inserting a new record
+    try:
+        for face_encoding in encodings:
+            # Compare current face encoding with all known encodings
+            matches = face_recognition.compare_faces(known_encodings, face_encoding)
+            face_distances = face_recognition.face_distance(known_encodings, face_encoding)
+            
+            if len(face_distances) > 0:
+                best_match_index = np.argmin(face_distances)
+                if matches[best_match_index]:
+                    student_id = student_ids[best_match_index]
+                    student_name = student_names[best_match_index]
+                    
+                    # Check for debounce (don't log if logged in the last 1 hour)
+                    last_attendance = db.query(models.Attendance).filter(
+                        models.Attendance.student_id == student_id
+                    ).order_by(models.Attendance.timestamp.desc()).first()
+                    
+                    import datetime as dt
+                    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+                    if last_attendance:
+                        time_diff = (now - last_attendance.timestamp).total_seconds()
+                        if time_diff < 3600:
+                            already_marked_names.add(student_name)
+                            continue # Skip inserting a new record
 
-                new_attendance = models.Attendance(student_id=student_id, timestamp=now)
-                db.add(new_attendance)
-                recognized_names.add(student_name)
+                    new_attendance = models.Attendance(student_id=student_id, timestamp=now)
+                    db.add(new_attendance)
+                    recognized_names.add(student_name)
+                    
+                    # Log to Excel
+                    excel_utils.log_attendance_to_excel(student_name, students[best_match_index].entry_number, students[best_match_index].class_name)
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Attendance processing error: {e}")
+        return {"message": "Error processing attendance", "recognized": []}
     
-    db.commit()
-    
-    return {"message": "Attendance processed", "recognized": list(recognized_names)}
+    return {
+        "message": "Attendance processed", 
+        "recognized": list(recognized_names),
+        "already_marked": list(already_marked_names)
+    }
 
 @app.get("/api/logs")
 def get_logs(db: Session = Depends(get_db)):
@@ -151,6 +179,7 @@ def get_logs(db: Session = Depends(get_db)):
             result.append({
                 "id": attendance.id,
                 "student_id": student.id,
+                "entry_number": student.entry_number,
                 "name": student.name,
                 "timestamp": attendance.timestamp.isoformat()
             })

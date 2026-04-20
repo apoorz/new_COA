@@ -5,3 +5,5 @@ opencv-python
 face_recognition
 numpy
 sqlalchemy
+pandas
+openpyxl

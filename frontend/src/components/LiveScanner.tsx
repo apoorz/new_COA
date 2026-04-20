@@ -29,7 +29,7 @@ export default function LiveScanner() {
 
     if (isScanning) {
       startWebcam();
-      intervalId = setInterval(captureAndSend, 3000);
+      intervalId = setInterval(captureAndSend, 10000);
     } else {
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
@@ -72,7 +72,9 @@ export default function LiveScanner() {
                 body: formData,
               });
               const data = await res.json();
-              if (data.recognized && data.recognized.length > 0) {
+              if (data.already_marked && data.already_marked.length > 0) {
+                 setStatus(`Attendance already marked. You can mark your attendance again after one hour.`);
+              } else if (data.recognized && data.recognized.length > 0) {
                 setRecognizedNames((prev) => {
                   const newNames = data.recognized.filter((name: string) => !prev.includes(name));
                   if (newNames.length > 0) {

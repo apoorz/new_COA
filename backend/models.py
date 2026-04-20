@@ -7,7 +7,9 @@ class Student(Base):
     __tablename__ = "students"
 
     id = Column(Integer, primary_key=True, index=True)
+    entry_number = Column(String, index=True)
     name = Column(String, index=True)
+    class_name = Column(String, index=True)
     face_encoding = Column(String)  # JSON-serialized list of floats
 
     attendances = relationship("Attendance", back_populates="student")

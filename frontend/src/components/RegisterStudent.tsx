@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 
 export default function RegisterStudent() {
   const [name, setName] = useState("");
+  const [entryNumber, setEntryNumber] = useState("");
+  const [className, setClassName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: "success" | "error" | "loading" | null; message: string }>({ type: null, message: "" });
@@ -19,14 +21,16 @@ export default function RegisterStudent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !file) {
-      setStatus({ type: "error", message: "Please provide both a name and an image." });
+    if (!name || !entryNumber || !className || !file) {
+      setStatus({ type: "error", message: "Please provide name, entry number, class, and an image." });
       return;
     }
 
     setStatus({ type: "loading", message: "Registering student..." });
     const formData = new FormData();
     formData.append("name", name);
+    formData.append("entry_number", entryNumber);
+    formData.append("class_name", className);
     formData.append("file", file);
 
     try {
@@ -42,6 +46,8 @@ export default function RegisterStudent() {
 
       setStatus({ type: "success", message: "Student registered successfully!" });
       setName("");
+      setEntryNumber("");
+      setClassName("");
       setFile(null);
       setPreviewUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -62,6 +68,26 @@ export default function RegisterStudent() {
             placeholder="e.g., John Doe"
             value={name}
             onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Entry Number</label>
+          <input
+            type="text"
+            className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+            placeholder="e.g., 2021ABC1234"
+            value={entryNumber}
+            onChange={(e) => setEntryNumber(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Class Name</label>
+          <input
+            type="text"
+            className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+            placeholder="e.g., CS101"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
           />
         </div>
         <div>

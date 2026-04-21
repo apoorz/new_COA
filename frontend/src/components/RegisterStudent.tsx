@@ -22,7 +22,7 @@ export default function RegisterStudent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !entryNumber || !className || !file) {
-      setStatus({ type: "error", message: "Please provide name, entry number, class, and an image." });
+      setStatus({ type: "error", message: "Please provide name, entry number, subject, and an image." });
       return;
     }
 
@@ -82,14 +82,15 @@ export default function RegisterStudent() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Class Name</label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Subject Name</label>
           <input
             type="text"
             className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-            placeholder="e.g., CS101"
+            placeholder="e.g., DAA, COA, Maths-II"
             value={className}
             onChange={(e) => setClassName(e.target.value)}
           />
+          <p className="text-xs text-gray-500 mt-1">Same entry number can be registered for multiple subjects.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">Portrait Photo</label>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export default function LiveScanner({ teacherUsername }: { teacherUsername: string }) {
+export default function LiveScanner({ teacherUsername, teacherSubject }: { teacherUsername: string; teacherSubject?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -66,6 +66,7 @@ export default function LiveScanner({ teacherUsername }: { teacherUsername: stri
             const formData = new FormData();
             formData.append("file", blob, "frame.jpg");
             formData.append("teacher_username", teacherUsername);
+            if (teacherSubject) formData.append("teacher_subject", teacherSubject);
             
             try {
               const API_BASE = `http://${window.location.hostname}:8000`;

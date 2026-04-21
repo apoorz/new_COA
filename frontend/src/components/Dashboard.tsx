@@ -29,6 +29,7 @@ interface HourlyData {
 }
 
 interface DashboardData {
+  subject: string;
   total_students: number;
   present_count: number;
   absent_count: number;
@@ -38,7 +39,7 @@ interface DashboardData {
 
 const COLORS = ["#22c55e", "#ef4444"];
 
-export default function Dashboard({ teacherUsername }: { teacherUsername: string }) {
+export default function Dashboard({ teacherUsername, teacherSubject }: { teacherUsername: string; teacherSubject?: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "present" | "absent">("all");
@@ -46,7 +47,9 @@ export default function Dashboard({ teacherUsername }: { teacherUsername: string
   const fetchData = async () => {
     try {
       const API_BASE = `http://${window.location.hostname}:8000`;
-      const res = await fetch(`${API_BASE}/api/dashboard?teacher_username=${teacherUsername}`);
+      let url = `${API_BASE}/api/dashboard?teacher_username=${encodeURIComponent(teacherUsername)}`;
+      if (teacherSubject) url += `&teacher_subject=${encodeURIComponent(teacherSubject)}`;
+      const res = await fetch(url);
       const json = await res.json();
       setData(json);
     } catch (err) {
@@ -100,7 +103,9 @@ export default function Dashboard({ teacherUsername }: { teacherUsername: string
           <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500 rounded-full opacity-10 blur-2xl"></div>
           <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Registered</p>
           <p className="text-5xl font-extrabold text-white">{data.total_students}</p>
-          <p className="text-xs text-gray-500 mt-2">All students in database</p>
+          <p className="text-xs text-gray-500 mt-2">
+            {data.subject !== "All Subjects" ? `In ${data.subject}` : "All subjects"}
+          </p>
         </div>
 
         {/* Present */}
@@ -176,7 +181,12 @@ export default function Dashboard({ teacherUsername }: { teacherUsername: string
       {/* ── Students Table ── */}
       <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h3 className="text-lg font-bold text-white">Registered Students</h3>
+          <div>
+            <h3 className="text-lg font-bold text-white">Registered Students</h3>
+            {data.subject && data.subject !== "All Subjects" && (
+              <p className="text-xs text-indigo-400 mt-0.5">Showing only <span className="font-semibold">{data.subject}</span> students</p>
+            )}
+          </div>
           <div className="flex gap-2">
             {(["all", "present", "absent"] as const).map((f) => (
               <button

@@ -34,7 +34,8 @@ export default function RegisterStudent() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/register", {
+      const API_BASE = `http://${window.location.hostname}:8000`;
+      const response = await fetch(`${API_BASE}/api/register`, {
         method: "POST",
         body: formData,
       });
@@ -65,7 +66,7 @@ export default function RegisterStudent() {
           <input
             type="text"
             className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-            placeholder="e.g., John Doe"
+            placeholder="e.g., Rahul Singh"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />

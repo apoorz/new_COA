@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export default function LiveScanner() {
+export default function LiveScanner({ teacherUsername }: { teacherUsername: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -65,9 +65,11 @@ export default function LiveScanner() {
           if (blob) {
             const formData = new FormData();
             formData.append("file", blob, "frame.jpg");
+            formData.append("teacher_username", teacherUsername);
             
             try {
-              const res = await fetch("http://127.0.0.1:8000/api/mark-attendance", {
+              const API_BASE = `http://${window.location.hostname}:8000`;
+              const res = await fetch(`${API_BASE}/api/mark-attendance`, {
                 method: "POST",
                 body: formData,
               });

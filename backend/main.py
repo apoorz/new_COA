@@ -9,6 +9,16 @@ from datetime import datetime
 import models
 import database
 import excel_utils
+import bcrypt
+
+def hash_password(password: str) -> str:
+    # bcrypt has a 72-byte limit; truncate to avoid errors
+    password_bytes = password.encode('utf-8')[:72]
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    password_bytes = password.encode('utf-8')[:72]
+    return bcrypt.checkpw(password_bytes, hashed.encode('utf-8'))
 
 models.Base.metadata.create_all(bind=database.engine)
 
@@ -17,7 +27,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -58,6 +68,36 @@ def get_face_encoding(image_bytes):
         print(f"Error processing image: {e}")
         return None, []
 
+@app.post("/api/teacher/signup")
+def signup_teacher(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        existing = db.query(models.Teacher).filter(models.Teacher.username == username).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        hashed_password = hash_password(password)
+        new_teacher = models.Teacher(username=username, password_hash=hashed_password)
+        db.add(new_teacher)
+        db.commit()
+        return {"message": "Teacher created successfully", "username": username}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Signup error: {e}")
+        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
+
+@app.post("/api/teacher/login")
+def login_teacher(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        teacher = db.query(models.Teacher).filter(models.Teacher.username == username).first()
+        if not teacher or not verify_password(password, teacher.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        return {"message": "Login successful", "username": username}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+
 @app.post("/api/register")
 async def register_student(name: str = Form(...), entry_number: str = Form(...), class_name: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
     
@@ -93,7 +133,7 @@ async def register_student(name: str = Form(...), entry_number: str = Form(...),
         raise HTTPException(status_code=500, detail="An internal error occurred during registration.")
 
 @app.post("/api/mark-attendance")
-async def mark_attendance(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def mark_attendance(file: UploadFile = File(...), teacher_username: str = Form(None), db: Session = Depends(get_db)):
     image_bytes = await file.read()
     encodings, _ = get_face_encoding(image_bytes)
     
@@ -141,12 +181,12 @@ async def mark_attendance(file: UploadFile = File(...), db: Session = Depends(ge
                             already_marked_names.add(student_name)
                             continue # Skip inserting a new record
 
-                    new_attendance = models.Attendance(student_id=student_id, timestamp=now)
+                    new_attendance = models.Attendance(student_id=student_id, teacher_username=teacher_username, timestamp=now)
                     db.add(new_attendance)
                     recognized_names.add(student_name)
                     
                     # Log to Excel
-                    excel_utils.log_attendance_to_excel(student_name, students[best_match_index].entry_number, students[best_match_index].class_name)
+                    excel_utils.log_attendance_to_excel(student_name, students[best_match_index].entry_number, students[best_match_index].class_name, teacher_username)
         
         db.commit()
     except Exception as e:
@@ -161,14 +201,18 @@ async def mark_attendance(file: UploadFile = File(...), db: Session = Depends(ge
     }
 
 @app.get("/api/logs")
-def get_logs(db: Session = Depends(get_db)):
+def get_logs(teacher_username: str = None, db: Session = Depends(get_db)):
     import datetime as dt
     # Use UTC for "today" to accurately match the UTC timestamps saved in mark_attendance
     today = dt.datetime.now(dt.timezone.utc).date()
     
-    logs = db.query(models.Attendance, models.Student).join(
+    query = db.query(models.Attendance, models.Student).join(
         models.Student, models.Attendance.student_id == models.Student.id
-    ).order_by(models.Attendance.timestamp.desc()).all()
+    )
+    if teacher_username:
+        query = query.filter(models.Attendance.teacher_username == teacher_username)
+        
+    logs = query.order_by(models.Attendance.timestamp.desc()).all()
     
     # Normally we would filter by date, but since SQLite datetime filtering can be tricky,
     # we'll fetch recently and format.
@@ -185,3 +229,55 @@ def get_logs(db: Session = Depends(get_db)):
             })
         
     return result
+
+@app.get("/api/dashboard")
+def get_dashboard(teacher_username: str = None, db: Session = Depends(get_db)):
+    import datetime as dt
+    today = dt.datetime.now(dt.timezone.utc).date()
+
+    # All registered students
+    all_students = db.query(models.Student).all()
+    total_students = len(all_students)
+
+    # Today's attendance for this teacher
+    att_query = db.query(models.Attendance, models.Student).join(
+        models.Student, models.Attendance.student_id == models.Student.id
+    )
+    if teacher_username:
+        att_query = att_query.filter(models.Attendance.teacher_username == teacher_username)
+
+    today_logs = [(att, stu) for att, stu in att_query.all() if att.timestamp.date() == today]
+
+    # Unique students present today (by student_id)
+    present_ids = set(att.student_id for att, stu in today_logs)
+    present_count = len(present_ids)
+    absent_count = total_students - present_count
+
+    # Hourly breakdown for chart (hour -> count of unique new attendances)
+    hourly: dict[int, int] = {}
+    for att, stu in today_logs:
+        hour = att.timestamp.hour
+        hourly[hour] = hourly.get(hour, 0) + 1
+
+    hourly_data = [{"hour": f"{h:02d}:00", "count": hourly.get(h, 0)} for h in range(24) if hourly.get(h, 0) > 0]
+
+    # Registered students list
+    students_list = [
+        {
+            "id": s.id,
+            "name": s.name,
+            "entry_number": s.entry_number,
+            "class_name": s.class_name,
+            "present_today": s.id in present_ids
+        }
+        for s in all_students
+    ]
+
+    return {
+        "total_students": total_students,
+        "present_count": present_count,
+        "absent_count": absent_count,
+        "hourly_data": hourly_data,
+        "students": students_list
+    }
+

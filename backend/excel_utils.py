@@ -27,10 +27,14 @@ def append_student_to_excel(name, entry_number, class_name):
     else:
         df_new.to_excel(STUDENTS_EXCEL, index=False)
 
-def log_attendance_to_excel(student_name, entry_number, class_name):
+def log_attendance_to_excel(student_name, entry_number, class_name, teacher_username=None):
     """Logs attendance to a class-specific daily excel file."""
     date_str = datetime.now().strftime("%Y-%m-%d")
-    filename = f"Attendance_{class_name}_{date_str}.xlsx"
+    
+    if teacher_username:
+        filename = f"Attendance_{teacher_username}_{class_name}_{date_str}.xlsx"
+    else:
+        filename = f"Attendance_{class_name}_{date_str}.xlsx"
     
     data = {
         "Entry Number": [entry_number],
@@ -49,7 +53,8 @@ def log_attendance_to_excel(student_name, entry_number, class_name):
             df_final.to_excel(filename, index=False)
         except Exception as e:
             print(f"Error accessing attendance excel {filename}: {e}")
-            fallback_filename = f"Attendance_{class_name}_fallback_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            fallback_prefix = f"Attendance_{teacher_username}_{class_name}" if teacher_username else f"Attendance_{class_name}"
+            fallback_filename = f"{fallback_prefix}_fallback_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             print(f"Saving to fallback file: {fallback_filename}")
             df_new.to_excel(fallback_filename, index=False)
     else:

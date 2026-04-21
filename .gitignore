@@ -1,4 +1,50 @@
-
-backend/attendance.db
-backend/venv/
+# ── Python ─────────────────────────────────────────────
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+backend/venv/
+backend/venv2/
+
+# ── Database ────────────────────────────────────────────
+backend/attendance.db
+backend/*.db
+
+# ── Excel output files (auto-generated) ─────────────────
+backend/*.xlsx
+
+# ── Backend test/scratch scripts ────────────────────────
+backend/test*.py
+backend/migrate_db.py
+backend/reset_db_and_export.py
+
+# ── Node.js / Next.js ───────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+
+# ── Environment variables ────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ── OS-specific ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor/IDE ───────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+npm-debug.log*

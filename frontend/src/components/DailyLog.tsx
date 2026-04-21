@@ -9,14 +9,15 @@ interface LogEntry {
   timestamp: string;
 }
 
-export default function DailyLog() {
+export default function DailyLog({ teacherUsername }: { teacherUsername: string }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/logs");
+        const API_BASE = `http://${window.location.hostname}:8000`;
+        const res = await fetch(`${API_BASE}/api/logs?teacher_username=${teacherUsername}`);
         const data = await res.json();
         setLogs(data);
       } catch (err) {

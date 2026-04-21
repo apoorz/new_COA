@@ -3,6 +3,13 @@ from sqlalchemy.orm import relationship
 from database import Base
 import datetime
 
+class Teacher(Base):
+    __tablename__ = "teachers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    password_hash = Column(String)
+
 class Student(Base):
     __tablename__ = "students"
 
@@ -19,6 +26,7 @@ class Attendance(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"))
+    teacher_username = Column(String, ForeignKey("teachers.username"), nullable=True) # Optional for backward compatibility, but we will pass it
     timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
 
     student = relationship("Student", back_populates="attendances")

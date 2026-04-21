@@ -13,6 +13,7 @@ interface SubjectData {
   subject: string;
   total_days_present: number;
   present_today: boolean;
+  status: "present" | "absent" | "pending";
   records: AttendanceRecord[];
 }
 
@@ -103,10 +104,18 @@ export default function StudentPortal({ student, onLogout }: { student: StudentI
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Subjects Enrolled</p>
               <p className="text-4xl font-extrabold text-white">{data.subjects.length}</p>
             </div>
-            <div className={`border rounded-2xl p-4 backdrop-blur-md col-span-2 sm:col-span-1 ${data.present_today ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20"}`}>
-              <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${data.present_today ? "text-emerald-400" : "text-red-400"}`}>Today's Status</p>
-              <p className={`text-4xl font-extrabold ${data.present_today ? "text-emerald-400" : "text-red-400"}`}>
-                {data.present_today ? "Present" : "Absent"}
+            <div className={`border rounded-2xl p-4 backdrop-blur-md col-span-2 sm:col-span-1 ${
+              data.present_today 
+                ? "bg-emerald-500/10 border-emerald-500/20" 
+                : "bg-white/5 border-white/10"
+            }`}>
+              <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                data.present_today ? "text-emerald-400" : "text-gray-400"
+              }`}>Today's Status</p>
+              <p className={`text-3xl font-extrabold ${
+                data.present_today ? "text-emerald-400" : "text-white"
+              }`}>
+                {data.present_today ? "Checked In" : "Pending Check-ins"}
               </p>
             </div>
             {data.subjects.map((s) => (
@@ -118,9 +127,23 @@ export default function StudentPortal({ student, onLogout }: { student: StudentI
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 truncate">{s.subject}</p>
                 <p className="text-3xl font-extrabold text-white">{s.total_days_present}</p>
                 <p className="text-xs text-gray-500 mt-0.5">days present</p>
-                {s.present_today && (
-                  <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">✓ Today</span>
-                )}
+                <div className="mt-2">
+                  {s.status === "present" && (
+                    <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      ✓ Present
+                    </span>
+                  )}
+                  {s.status === "absent" && (
+                    <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+                      ✗ Absent
+                    </span>
+                  )}
+                  {s.status === "pending" && (
+                    <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                      Pending
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

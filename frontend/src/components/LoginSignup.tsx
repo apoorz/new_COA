@@ -7,6 +7,8 @@ export default function LoginSignup({ onLogin }: { onLogin: (username: string, s
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [subject, setSubject] = useState("");
+  const [classStartTime, setClassStartTime] = useState("");
+  const [classEndTime, setClassEndTime] = useState("");
   const [status, setStatus] = useState<{ type: "success" | "error" | "loading" | null; message: string }>({ type: null, message: "" });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,6 +23,11 @@ export default function LoginSignup({ onLogin }: { onLogin: (username: string, s
     formData.append("username", username);
     formData.append("password", password);
     formData.append("subject", subject.trim());
+    
+    if (!isLogin) {
+      formData.append("class_start_time", classStartTime);
+      formData.append("class_end_time", classEndTime);
+    }
 
     const API_BASE = `http://${window.location.hostname}:8000`;
     const endpoint = isLogin ? `${API_BASE}/api/teacher/login` : `${API_BASE}/api/teacher/signup`;
@@ -38,6 +45,8 @@ export default function LoginSignup({ onLogin }: { onLogin: (username: string, s
         setTimeout(() => {
           setIsLogin(true);
           setPassword("");
+          setClassStartTime("");
+          setClassEndTime("");
           setStatus({ type: null, message: "" });
         }, 1800);
       }
@@ -92,6 +101,29 @@ export default function LoginSignup({ onLogin }: { onLogin: (username: string, s
               </p>
             )}
           </div>
+
+          {!isLogin && (
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-semibold text-gray-200 mb-2">Class Start Time <span className="text-gray-500 text-xs font-normal">(optional)</span></label>
+                <input
+                  type="time"
+                  className="w-full px-4 py-3 rounded-xl bg-black/40 border border-gray-600/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  value={classStartTime}
+                  onChange={(e) => setClassStartTime(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-semibold text-gray-200 mb-2">Class End Time <span className="text-gray-500 text-xs font-normal">(optional)</span></label>
+                <input
+                  type="time"
+                  className="w-full px-4 py-3 rounded-xl bg-black/40 border border-gray-600/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  value={classEndTime}
+                  onChange={(e) => setClassEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Password */}
           <div>

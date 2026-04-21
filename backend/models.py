@@ -15,6 +15,8 @@ class Teacher(Base):
     username = Column(String, index=True)          # NOT unique – same teacher can have multiple subjects
     password_hash = Column(String)
     subject = Column(String, nullable=True)        # Teacher's subject for this row
+    class_start_time = Column(String, nullable=True) # e.g. "10:00"
+    class_end_time = Column(String, nullable=True)   # e.g. "11:30"
 
 class Student(Base):
     __tablename__ = "students"

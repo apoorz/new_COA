@@ -33,6 +33,7 @@ interface DashboardData {
   total_students: number;
   present_count: number;
   absent_count: number;
+  pending_count: number;
   hourly_data: HourlyData[];
   students: Student[];
 }
@@ -42,7 +43,7 @@ const COLORS = ["#22c55e", "#ef4444"];
 export default function Dashboard({ teacherUsername, teacherSubject }: { teacherUsername: string; teacherSubject?: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "present" | "absent">("all");
+  const [filter, setFilter] = useState<"all" | "present" | "absent" | "pending">("all");
 
   const fetchData = async () => {
     try {
@@ -80,11 +81,13 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
   const pieData = [
     { name: "Present", value: data.present_count },
     { name: "Absent", value: data.absent_count },
-  ];
+    { name: "Pending", value: data.pending_count }
+  ].filter(d => d.value > 0);
 
   const filteredStudents = data.students.filter((s) => {
-    if (filter === "present") return s.present_today;
-    if (filter === "absent") return !s.present_today;
+    if (filter === "present") return s.status === "present";
+    if (filter === "absent") return s.status === "absent";
+    if (filter === "pending") return s.status === "pending";
     return true;
   });
 
@@ -97,7 +100,7 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
     <div className="space-y-8 w-full">
 
       {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         {/* Total */}
         <div className="relative overflow-hidden bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-lg">
           <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500 rounded-full opacity-10 blur-2xl"></div>
@@ -119,9 +122,17 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
         {/* Absent */}
         <div className="relative overflow-hidden bg-white/5 backdrop-blur-md border border-red-500/20 rounded-2xl p-6 shadow-lg">
           <div className="absolute -top-6 -right-6 w-24 h-24 bg-red-500 rounded-full opacity-10 blur-2xl"></div>
-          <p className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-1">Absent Today</p>
+          <p className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-1">Absent</p>
           <p className="text-5xl font-extrabold text-red-400">{data.absent_count}</p>
-          <p className="text-xs text-gray-500 mt-2">{100 - attendancePercent}% of students</p>
+          <p className="text-xs text-gray-500 mt-2">Missed class</p>
+        </div>
+
+        {/* Pending */}
+        <div className="relative overflow-hidden bg-white/5 backdrop-blur-md border border-yellow-500/20 rounded-2xl p-6 shadow-lg">
+          <div className="absolute -top-6 -right-6 w-24 h-24 bg-yellow-500 rounded-full opacity-10 blur-2xl"></div>
+          <p className="text-sm font-semibold text-yellow-400 uppercase tracking-wider mb-1">Pending</p>
+          <p className="text-5xl font-extrabold text-yellow-400">{data.pending_count}</p>
+          <p className="text-xs text-gray-500 mt-2">Class ongoing/upcoming</p>
         </div>
       </div>
 
@@ -144,9 +155,10 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
                   paddingAngle={4}
                   dataKey="value"
                 >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index]} strokeWidth={0} />
-                  ))}
+                  {pieData.map((entry, index) => {
+                    const color = entry.name === "Present" ? "#22c55e" : entry.name === "Absent" ? "#ef4444" : "#eab308";
+                    return <Cell key={`cell-${index}`} fill={color} strokeWidth={0} />;
+                  })}
                 </Pie>
                 <Tooltip
                   contentStyle={{ background: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}
@@ -188,7 +200,7 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
             )}
           </div>
           <div className="flex gap-2">
-            {(["all", "present", "absent"] as const).map((f) => (
+            {(["all", "present", "absent", "pending"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -198,11 +210,13 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
                       ? "bg-green-500 text-white"
                       : f === "absent"
                       ? "bg-red-500 text-white"
+                      : f === "pending"
+                      ? "bg-yellow-500 text-white"
                       : "bg-indigo-600 text-white"
                     : "bg-white/10 text-gray-400 hover:text-white"
                 }`}
               >
-                {f} {f === "all" ? `(${data.total_students})` : f === "present" ? `(${data.present_count})` : `(${data.absent_count})`}
+                {f} {f === "all" ? `(${data.total_students})` : f === "present" ? `(${data.present_count})` : f === "absent" ? `(${data.absent_count})` : `(${data.pending_count})`}
               </button>
             ))}
           </div>
@@ -240,15 +254,22 @@ export default function Dashboard({ teacherUsername, teacherSubject }: { teacher
                     <td className="px-6 py-4 text-gray-300 font-mono text-sm">{s.entry_number}</td>
                     <td className="px-6 py-4 text-gray-300 text-sm">{s.class_name}</td>
                     <td className="px-6 py-4">
-                      {s.present_today ? (
+                      {s.status === "present" && (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500/10 text-green-400 border border-green-500/20">
                           <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
                           Present
                         </span>
-                      ) : (
+                      )}
+                      {s.status === "absent" && (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
                           <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block"></span>
                           Absent
+                        </span>
+                      )}
+                      {s.status === "pending" && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block"></span>
+                          Pending
                         </span>
                       )}
                     </td>

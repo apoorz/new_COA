@@ -69,7 +69,14 @@ def get_face_encoding(image_bytes):
         return None, []
 
 @app.post("/api/teacher/signup")
-def signup_teacher(username: str = Form(...), password: str = Form(...), subject: str = Form(""), db: Session = Depends(get_db)):
+def signup_teacher(
+    username: str = Form(...), 
+    password: str = Form(...), 
+    subject: str = Form(""), 
+    class_start_time: str = Form(""),
+    class_end_time: str = Form(""),
+    db: Session = Depends(get_db)
+):
     try:
         subject_clean = subject.strip()
         if not subject_clean:
@@ -92,7 +99,13 @@ def signup_teacher(username: str = Form(...), password: str = Form(...), subject
         else:
             hashed_password = hash_password(password)
 
-        new_teacher = models.Teacher(username=username, password_hash=hashed_password, subject=subject_clean)
+        new_teacher = models.Teacher(
+            username=username, 
+            password_hash=hashed_password, 
+            subject=subject_clean,
+            class_start_time=class_start_time.strip() or None,
+            class_end_time=class_end_time.strip() or None
+        )
         db.add(new_teacher)
         db.commit()
         return {"message": "Teacher registered successfully", "username": username, "subject": subject_clean}
@@ -153,12 +166,15 @@ def login_student(entry_number: str = Form(...), password: str = Form(...), db: 
 @app.get("/api/student/attendance")
 def get_student_attendance(entry_number: str, db: Session = Depends(get_db)):
     import datetime as dt
+    IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+    now_ist = dt.datetime.now(IST)
+    today = now_ist.date().isoformat()
+
     # Get ALL rows for this entry_number (one per subject)
     students = db.query(models.Student).filter(models.Student.entry_number == entry_number).all()
     if not students:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    today = dt.datetime.now(dt.timezone(dt.timedelta(hours=5, minutes=30))).date().isoformat()
     subjects_data = []
 
     for student in students:
@@ -179,10 +195,30 @@ def get_student_attendance(entry_number: str, db: Session = Depends(get_db)):
             })
 
         present_today = any(r["date"] == today for r in records)
+        
+        # Check teacher's class_end_time for this subject
+        teacher_record = db.query(models.Teacher).filter(models.Teacher.subject == student.class_name).first()
+        is_class_ended = True
+        if teacher_record and teacher_record.class_end_time:
+            try:
+                end_time = dt.datetime.strptime(teacher_record.class_end_time, "%H:%M").time()
+                if now_ist.time() <= end_time:
+                    is_class_ended = False
+            except ValueError:
+                pass
+
+        if present_today:
+            status = "present"
+        elif is_class_ended:
+            status = "absent"
+        else:
+            status = "pending"
+
         subjects_data.append({
             "subject": student.class_name,
             "total_days_present": len(days_set),
-            "present_today": present_today,
+            "present_today": present_today, # keep for compat
+            "status": status,
             "records": records
         })
 
@@ -367,7 +403,26 @@ def get_logs(teacher_username: str = None, teacher_subject: str = None, db: Sess
 def get_dashboard(teacher_username: str = None, teacher_subject: str = None, db: Session = Depends(get_db)):
     import datetime as dt
     IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
-    today = dt.datetime.now(IST).date()  # IST today
+    now_ist = dt.datetime.now(IST)
+    today = now_ist.date()  # IST today
+
+    # Get teacher's record to find class_end_time
+    teacher_record = None
+    if teacher_username and teacher_subject:
+        teacher_record = db.query(models.Teacher).filter(
+            models.Teacher.username == teacher_username,
+            models.Teacher.subject == teacher_subject
+        ).first()
+
+    # Determine if class has ended
+    is_class_ended = True
+    if teacher_record and teacher_record.class_end_time:
+        try:
+            end_time = dt.datetime.strptime(teacher_record.class_end_time, "%H:%M").time()
+            if now_ist.time() <= end_time:
+                is_class_ended = False
+        except ValueError:
+            pass
 
     # Students registered for this teacher's subject (or all if no subject)
     student_query = db.query(models.Student)
@@ -390,7 +445,13 @@ def get_dashboard(teacher_username: str = None, teacher_subject: str = None, db:
 
     present_ids = set(att.student_id for att, stu in today_logs)
     present_count = len(present_ids)
-    absent_count = total_students - present_count
+    
+    absent_count = 0
+    pending_count = 0
+    if is_class_ended:
+        absent_count = total_students - present_count
+    else:
+        pending_count = total_students - present_count
 
     # Hourly breakdown
     hourly: dict[int, int] = {}
@@ -399,23 +460,31 @@ def get_dashboard(teacher_username: str = None, teacher_subject: str = None, db:
         hourly[hour] = hourly.get(hour, 0) + 1
     hourly_data = [{"hour": f"{h:02d}:00", "count": hourly[h]} for h in sorted(hourly)]
 
-    # Student list with present/absent status
-    students_list = [
-        {
+    # Student list with present/absent/pending status
+    students_list = []
+    for s in all_students:
+        if s.id in present_ids:
+            status = "present"
+        elif is_class_ended:
+            status = "absent"
+        else:
+            status = "pending"
+            
+        students_list.append({
             "id": s.id,
             "name": s.name,
             "entry_number": s.entry_number,
             "class_name": s.class_name,
-            "present_today": s.id in present_ids
-        }
-        for s in all_students
-    ]
+            "status": status,
+            "present_today": s.id in present_ids # backwards compat
+        })
 
     return {
         "subject": teacher_subject or "All Subjects",
         "total_students": total_students,
         "present_count": present_count,
         "absent_count": absent_count,
+        "pending_count": pending_count,
         "hourly_data": hourly_data,
         "students": students_list
     }
